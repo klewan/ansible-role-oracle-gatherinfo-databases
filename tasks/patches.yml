@@ -1,0 +1,30 @@
+---
+
+- include_tasks: home_patches.yml
+  with_items:
+    - "{{ oracle_gatherinfo_databases_oracle_databases }}"
+  loop_control:
+    loop_var: _oracle_gatherinfo_databases_oracle_db_item
+    label: "[ORACLE_HOME: {{ _oracle_gatherinfo_databases_oracle_db_item.oracle_home }}]"
+  when: oracle_gatherinfo_databases_get_oracle_home_patches and oracle_gatherinfo_databases_oracle_databases|length > 0
+  tags:
+    - oracle_gatherinfo_databases_get_oracle_home_patches
+
+- name: patches | set variables (1)
+  set_fact:
+    oracle_gatherinfo_databases_oracle_databases_with_patches: "{{ oracle_gatherinfo_databases_oracle_databases_with_patches|default([]) + [ _oracle_gatherinfo_databases_oracle_db_item | combine( { 'oracle_home_patches': oracle_gatherinfo_databases_f_all_oracle_home_patches[_oracle_gatherinfo_databases_oracle_db_item.oracle_home] } ) ] }}"
+  with_items: "{{ oracle_gatherinfo_databases_oracle_databases }}"
+  loop_control:
+    loop_var: _oracle_gatherinfo_databases_oracle_db_item
+    label: "[ORACLE_HOME: {{ _oracle_gatherinfo_databases_oracle_db_item.oracle_home }}]"
+  when: oracle_gatherinfo_databases_f_all_oracle_home_patches is defined
+  tags:
+    - oracle_gatherinfo_databases_get_oracle_home_patches
+
+- name: patches | set variables (2)
+  set_fact:
+    oracle_gatherinfo_databases_oracle_databases: '{{ oracle_gatherinfo_databases_oracle_databases_with_patches }}'
+  when: oracle_gatherinfo_databases_oracle_databases_with_patches is defined
+  tags:
+    - oracle_gatherinfo_databases_get_oracle_home_patches
+

@@ -1,0 +1,14 @@
+#!/bin/sh
+
+DIR="$(dirname $0)"
+if [ "$DIR" = "." ]
+then
+  DIR=$(pwd)
+fi
+
+DATABASES_JSON_FILE=$DIR/oracle_databases.json
+
+if [ -f $DATABASES_JSON_FILE ]; then
+  cat $DATABASES_JSON_FILE
+fi
+

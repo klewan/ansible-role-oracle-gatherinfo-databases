@@ -1,0 +1,44 @@
+---
+
+- name: home patches | get ORACLE_HOME patches
+  shell: |
+    {% if oracle_gatherinfo_databases_get_oracle_home_patches %}
+    {{ _oracle_gatherinfo_databases_oracle_db_item.oracle_home }}/OPatch/opatch lspatches | grep -v OPatch | sed '/^$/d'
+    {% else %}
+    echo
+    {% endif %}
+  register: _oracle_gatherinfo_databases_oracle_home_patches
+  check_mode: no
+  tags:
+    - oracle_gatherinfo_databases_get_oracle_home_patches
+
+- name: home patches | set variables (1)
+  set_fact:
+    oracle_gatherinfo_databases_f_patches: "{{ oracle_gatherinfo_databases_f_patches|default({}) | combine( { 'patch_number': item | regex_replace('^(\\d*).*$', '\\1' ) } ) | combine( { 'patch_description': item | regex_replace('^[^;]*;(.*)$', '\\1' ) } ) }}"
+  with_items:
+    - "{{ _oracle_gatherinfo_databases_oracle_home_patches.stdout_lines }}"
+  loop_control:
+    label: "[patch_number: {{ item | regex_replace('^(\\d*).*$', '\\1' ) }}]"
+  register: _oracle_gatherinfo_databases_f_patches_dict
+  when: _oracle_gatherinfo_databases_oracle_home_patches is defined
+  tags:
+    - oracle_gatherinfo_databases_get_oracle_home_patches
+
+- name: home patches | set variables (2)
+  set_fact:
+    oracle_gatherinfo_databases_f_oracle_home_patches: "{{ oracle_gatherinfo_databases_f_oracle_home_patches|default([]) + [ item.ansible_facts.oracle_gatherinfo_databases_f_patches ] }}"
+  with_items:
+    - "{{ _oracle_gatherinfo_databases_f_patches_dict.results }}"
+  loop_control:
+    label: "[patch_number: {{ item.ansible_facts.oracle_gatherinfo_databases_f_patches.patch_number }}]"
+  when: _oracle_gatherinfo_databases_oracle_home_patches is defined and _oracle_gatherinfo_databases_f_patches_dict is defined
+  tags:
+    - oracle_gatherinfo_databases_get_oracle_home_patches
+
+- name: home patches | set variables (3)
+  set_fact:
+    oracle_gatherinfo_databases_f_all_oracle_home_patches: "{{ oracle_gatherinfo_databases_f_all_oracle_home_patches|default({}) | combine( { _oracle_gatherinfo_databases_oracle_db_item.oracle_home : oracle_gatherinfo_databases_f_oracle_home_patches } ) }}"
+  when: oracle_gatherinfo_databases_f_oracle_home_patches is defined
+  tags:
+    - oracle_gatherinfo_databases_get_oracle_home_patches
+

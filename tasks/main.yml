@@ -1,0 +1,82 @@
+---
+
+- name: assert that GRID_HOME is not empty
+  assert:
+    that:
+      - "oracle_gi_info.oracle_home|default('', true)|length > 0"
+    fail_msg: "'oracle_gi_info.oracle_home' must not be empty"
+  when: oracle_gatherinfo_databases_from_gi_registry
+  tags:
+    - oracle_gatherinfo_databases_precheck
+
+- name: collect database information from Grid Infrastructure registry
+  shell: |
+    for i in $({{ oracle_gi_info.oracle_home }}/bin/crsctl status resource -w "TYPE = ora.database.type" -f | egrep '^DB_UNIQUE_NAME=|^ORACLE_HOME=|^ROLE=|^USR_ORA_DB_NAME=|^DATABASE_TYPE=|^CLUSTER_DATABASE=' | paste -s -d ',' | uniq)
+    do
+      export DB_UNIQUE_NAME=$(echo $i | sed 's/^.*DB_UNIQUE_NAME=\([^,]*\).*$/\1/g')
+      ORACLE_HOME=$(echo $i | sed 's/^.*ORACLE_HOME=\([^,]*\).*$/\1/g')
+      DB_NAME=$(echo $i | sed 's/^.*USR_ORA_DB_NAME=\([^,]*\).*$/\1/g')
+      if [ "$DB_NAME" == "" ]; then
+        DB_NAME=$DB_UNIQUE_NAME
+      fi
+      INSTANCES=$({{ oracle_gi_info.oracle_home }}/bin/crsctl status resource -w "DB_UNIQUE_NAME = $DB_UNIQUE_NAME" -f | egrep '^GEN_USR_ORA_INST_NAME=' | sed 's/GEN_USR_ORA_INST_NAME=//g' | paste -s -d ' ')
+      ORACLE_SID=$(echo $INSTANCES | sed 's/ .*//g')
+      LINE=$(echo $i | sed "s/USR_ORA_DB_NAME=\S*/DB_NAME=$DB_NAME/g")
+      EDITION=$(strings $ORACLE_HOME/lib/libvsn*.a | grep -i release | awk -F "Oracle Database" '{print $2}' | awk '{print $2}')
+      if [ "$EDITION" != "Enterprise" ]; then
+        EDITION="Standard"
+      fi
+      echo -n "$LINE,ORACLE_SID=$ORACLE_SID,INSTANCES=$INSTANCES,EDITION=$EDITION,SOFTWARE_VERSION="
+      strings $ORACLE_HOME/bin/oracle | grep 'NLSRTL Version' | awk '{print $3}'
+    done
+  register: _oracle_gatherinfo_databases_registered_databases_info_shell
+  check_mode: no
+  when: oracle_gatherinfo_databases_from_gi_registry
+  tags:
+    - oracle_gatherinfo_databases_collect_database_info
+
+- name: set variables (1)
+  set_fact:
+    oracle_gatherinfo_databases_db_item: "{{ oracle_gatherinfo_databases_db_item|default({}) | combine( { 'is_registered_in_gi': 'true' } ) | combine( { 'db_unique_name': item | regex_replace('^.*DB_UNIQUE_NAME=([^,]+).*$', '\\1' ) } ) | combine( { 'cluster_database': item | regex_replace('^.*CLUSTER_DATABASE=([^,]+).*$', '\\1' ) } ) | combine( { 'database_type': item | regex_replace('^.*DATABASE_TYPE=([^,]+).*$', '\\1' ) } ) | combine( { 'oracle_home': item | regex_replace('^.*ORACLE_HOME=([^,]+).*$', '\\1' ) } ) | combine( { 'database_role': item | regex_replace('^.*ROLE=([^,]+).*$', '\\1' ) } ) | combine( { 'db_name': item | regex_replace('^.*DB_NAME=([^,]+).*$', '\\1' ) } ) | combine( { 'instance_name': item | regex_replace('^.*ORACLE_SID=([^,]+).*$', '\\1' ) } ) | combine( { 'software_version': item | regex_replace('^.*SOFTWARE_VERSION=([^,]+).*$', '\\1' ) } ) | combine( { 'instance_name': item | regex_replace('^.*ORACLE_SID=([^,]+).*$', '\\1' ) } ) | combine( { 'edition': item | regex_replace('^.*EDITION=([^,]+).*$', '\\1' ) } ) | combine( { 'instances': item | regex_replace('^.*INSTANCES=([^,]+).*$', '\\1' ) } ) }}"
+  with_items:
+    - "{{ _oracle_gatherinfo_databases_registered_databases_info_shell.stdout_lines }}"
+  loop_control:
+    label: "[gathering facts about db_unique_name: {{ item | regex_replace('^.*DB_UNIQUE_NAME=([^,]+).*$', '\\1' ) }}]"
+  register: _oracle_gatherinfo_databases_registered_databases_info_list
+  when: oracle_gatherinfo_databases_from_gi_registry and _oracle_gatherinfo_databases_registered_databases_info_shell != ""
+  tags:
+    - oracle_gatherinfo_databases_collect_database_info
+
+- name: set variables (2)
+  set_fact:
+    oracle_gatherinfo_databases_oracle_databases: "{{ oracle_gatherinfo_databases_oracle_databases + [ item.ansible_facts.oracle_gatherinfo_databases_db_item ] }}"
+  with_items:
+    - "{{ _oracle_gatherinfo_databases_registered_databases_info_list.results|default([],true) }}"
+  loop_control:
+    label: "[gathering facts about db_unique_name: {{ item.item|default('',true) | regex_replace('^.*DB_UNIQUE_NAME=([^,]+).*$', '\\1' ) }}]"
+  when: oracle_gatherinfo_databases_from_gi_registry and _oracle_gatherinfo_databases_registered_databases_info_list is defined
+  tags:
+    - oracle_gatherinfo_databases_collect_database_info
+
+- include_tasks: patches.yml
+  when: oracle_gatherinfo_databases_get_oracle_home_patches and oracle_gatherinfo_databases_oracle_databases|length > 0
+  tags:
+    - oracle_gatherinfo_databases_get_oracle_home_patches
+
+- include_tasks: extra_facts.yml
+  when: oracle_gatherinfo_databases_get_extra_facts and oracle_gatherinfo_databases_oracle_databases|length > 0
+  tags:
+    - oracle_gatherinfo_databases_get_extra_facts
+
+#- name: print collected data
+#  debug: var=oracle_gatherinfo_databases_oracle_databases
+#  when: oracle_gatherinfo_databases_print_collected_data
+#  tags:
+#    - oracle_gatherinfo_databases_print_collected_data
+
+- name: print collected data
+  debug: var=oracle_databases
+  when: oracle_gatherinfo_databases_print_collected_data
+  tags:
+    - oracle_gatherinfo_databases_print_collected_data
+

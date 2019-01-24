@@ -1,0 +1,38 @@
+---
+
+# source of database facts - Oracle Grid Infrastructure registry (whether to collect info from GI or not)
+oracle_gatherinfo_databases_from_gi_registry: true
+
+# List describing registered Oracle databases (dynamically populated)
+oracle_gatherinfo_databases_oracle_databases: []
+
+# e.g.:
+#oracle_gatherinfo_databases_oracle_databases:
+#  - cluster_database: "false"
+#    database_role: "PRIMARY"
+#    database_type: "SINGLE"
+#    db_name: "ORCL"
+#    db_unique_name: "ORCL"
+#    edition: "Enterprise"
+#    instance_name: "ORCL"
+#    instances: "ORCL"
+#    is_registered_in_gi: "true"
+#    oracle_home: "/u01/app/oracle/product/11.2.0.4/dbhome1"
+#    software_version: "11.2.0.4.0"
+
+# print collected information about databases (display oracle_gatherinfo_databases_oracle_databases variable)
+oracle_gatherinfo_databases_print_collected_data: true
+
+# get ORACLE_HOME patches
+oracle_gatherinfo_databases_get_oracle_home_patches: false
+
+# get extra facts (for example for capacity report)
+oracle_gatherinfo_databases_get_extra_facts: false
+
+# facts directory
+oracle_gatherinfo_databases_facts_dir: "{{ oracle_facts_dir | default('~/scripts/facts.d', true) }}"
+
+# a list of fact scripts templates used by Ansible 'setup' module
+oracle_gatherinfo_databases_fact_script_templates:
+  - oracle_databases.fact
+
